@@ -56,7 +56,7 @@ export default function ConverterPage() {
     const conversions = getAvailableConversions(selectedFile);
     if (conversions.length === 0) {
       setError(
-        `Unsupported file type. Please upload a DOCX, PDF, JPG, or HEIC file.`
+        `Unsupported file type. Please upload a DOC, DOCX, PDF, JPG, or HEIC file.`
       );
       setFile(null);
       setAvailableConversions([]);
@@ -270,8 +270,9 @@ export default function ConverterPage() {
       </div>
 
       {/* Supported Formats Info */}
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
+          { from: 'DOC', to: 'PDF', icon: '📃' },
           { from: 'DOCX', to: 'PDF', icon: '📄' },
           { from: 'PDF', to: 'DOCX', icon: '📝' },
           { from: 'JPG', to: 'HEIC', icon: '🖼️' },
