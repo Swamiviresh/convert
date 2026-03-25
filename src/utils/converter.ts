@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { jsPDF } from 'jspdf';
 import heic2any from 'heic2any';
-import { generateDocx } from './docxHelper';
+import { generateDocx, convertDocToDocx } from './docxHelper';
 
 const MAX_FILE_SIZE_MB = 50;
 const DOCX_MAX_SIZE_MB = 25;
@@ -13,14 +13,14 @@ export function validateFileSize(file: File): string | null {
   }
 
   const ext = getFileExtension(file.name);
-  if ((ext === 'docx' || ext === 'pdf') && sizeMB > DOCX_MAX_SIZE_MB) {
+  if ((ext === 'doc' || ext === 'docx' || ext === 'pdf') && sizeMB > DOCX_MAX_SIZE_MB) {
     return `Document files larger than ${DOCX_MAX_SIZE_MB} MB may cause performance issues. Please use a smaller file.`;
   }
 
   return null;
 }
 
-export type ConversionType = 'docx-to-pdf' | 'pdf-to-docx' | 'jpg-to-heic' | 'heic-to-jpg';
+export type ConversionType = 'doc-to-pdf' | 'docx-to-pdf' | 'pdf-to-docx' | 'jpg-to-heic' | 'heic-to-jpg';
 
 export interface ConversionResult {
   blob: Blob;
@@ -43,6 +43,8 @@ export function getAvailableConversions(file: File): ConversionType[] {
   const mimeType = file.type.toLowerCase();
 
   switch (ext) {
+    case 'doc':
+      return ['doc-to-pdf'];
     case 'docx':
       return ['docx-to-pdf'];
     case 'pdf':
@@ -58,6 +60,9 @@ export function getAvailableConversions(file: File): ConversionType[] {
   }
 
   // Fallback: detect by MIME type if extension is ambiguous
+  if (mimeType === 'application/msword') {
+    return ['doc-to-pdf'];
+  }
   if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     return ['docx-to-pdf'];
   }
@@ -76,6 +81,8 @@ export function getAvailableConversions(file: File): ConversionType[] {
 
 export function getConversionLabel(type: ConversionType): string {
   switch (type) {
+    case 'doc-to-pdf':
+      return 'DOC → PDF';
     case 'docx-to-pdf':
       return 'DOCX → PDF';
     case 'pdf-to-docx':
@@ -88,7 +95,7 @@ export function getConversionLabel(type: ConversionType): string {
 }
 
 export function getAcceptedFileTypes(): string {
-  return '.docx,.pdf,.jpg,.jpeg,.heic,.heif,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf';
+  return '.doc,.docx,.pdf,.jpg,.jpeg,.heic,.heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf';
 }
 
 async function docxToPdf(file: File): Promise<ConversionResult> {
@@ -345,11 +352,36 @@ async function heicToJpg(file: File): Promise<ConversionResult> {
   };
 }
 
+async function docToPdf(file: File): Promise<ConversionResult> {
+  let docxBlob: Blob;
+
+  try {
+    docxBlob = await convertDocToDocx(file);
+  } catch (err) {
+    throw new Error(
+      err instanceof Error
+        ? err.message
+        : 'Legacy .doc files have limited support. Please convert to .docx for best results.'
+    );
+  }
+
+  // Create a File from the converted blob so we can feed it through the DOCX → PDF pipeline
+  const docxFile = new File(
+    [docxBlob],
+    getFileBaseName(file.name) + '.docx',
+    { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+  );
+
+  return docxToPdf(docxFile);
+}
+
 export async function convertFile(
   file: File,
   conversionType: ConversionType
 ): Promise<ConversionResult> {
   switch (conversionType) {
+    case 'doc-to-pdf':
+      return docToPdf(file);
     case 'docx-to-pdf':
       return docxToPdf(file);
     case 'pdf-to-docx':
